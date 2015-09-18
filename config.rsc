@@ -39,6 +39,19 @@
 /ip address add address=(172.16.0.0+$number) interface=loopback
 /interface wireless cap set caps-man-addresses=fd58:9c23:3615::ffff enabled=yes interfaces=[/interface wireless find]
 
+/caps-man channel
+remove [find]
+add band=2ghz-onlyn extension-channel=disabled frequency=2412 name=24-001
+add band=2ghz-onlyn extension-channel=disabled frequency=2432 name=24-005
+add band=2ghz-onlyn extension-channel=disabled frequency=2452 name=24-009
+add band=2ghz-onlyn extension-channel=disabled frequency=2472 name=24-013
+add band=5ghz-onlyn extension-channel=Ce frequency=5180 name=5-036
+add band=5ghz-onlyn extension-channel=Ce frequency=5220 name=5-044
+add band=5ghz-onlyn extension-channel=Ce frequency=5260 name=5-052
+add band=5ghz-onlyn extension-channel=Ce frequency=5300 name=5-060
+add band=5ghz-onlyac extension-channel=Ceee frequency=5500 name=5-100
+add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
+
 
 /system script
 remove check-master
