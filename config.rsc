@@ -1,4 +1,4 @@
-:global number 0
+:global number [/file get value-name=contents id]
 
 :global maxIfCount 8
 
@@ -86,8 +86,6 @@ set allow-remote-requests=yes
 
 
 
-/interface wireless cap set caps-man-addresses=fd58:9c23:3615::ffff enabled=yes interfaces=[/interface wireless find]
-
 /caps-man channel
 remove [find]
 add band=2ghz-onlyn extension-channel=disabled frequency=2412 name=24-001
@@ -103,7 +101,7 @@ add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
 
 
 /system script
-remove check-master
+remove [find name=check-master]
 add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="{\
     \n    :local number $number\
     \n    :local masterCount 0\
@@ -145,7 +143,7 @@ add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,se
     \n            /caps-man radio provision [find where !interface]\
     \n        }\
     \n        /caps-man manager set enabled=yes\
-    \n        :for tunnel from=0 to=20 step=1 do={\
+    \n        :for tunnel from=0 to=50 step=1 do={\
     \n            :if (\$number != \$tunnel) do={\
     \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0 && [:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                    /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
@@ -161,13 +159,10 @@ add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,se
 
 
 /system scheduler
-	remove check-master
+	remove [find name=check-master]
 	add interval=1m name=check-master on-event="/system script run check-master"
 
 
-
-
-
-
+/interface wireless cap set caps-man-addresses=fd58:9c23:3615::ffff enabled=yes interfaces=[/interface wireless find]
 
 
