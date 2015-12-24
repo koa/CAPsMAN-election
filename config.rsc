@@ -1,3 +1,4 @@
+
 :global number [/file get value-name=contents id]
 
 :global maxIfCount 8
@@ -5,22 +6,20 @@
 /interface wireless cap set enabled=no 
 /interface wireless set country=switzerland [find] frequency-mode=regulatory-domain
 
-/interface bridge 
+/certificate
 	remove [find]
-	add name=loopback auto-mac=no admin-mac=01:00:00:00:01:00
+
 /interface ethernet
-	 set master-port=none [find]
+#	 set master-port=none [find]
 
 /routing ospf-v3 instance
-	set [ find default=yes ] distribute-default=if-installed-as-type-1 router-id=(172.16.0.0+$number)
-
+	set [ find default=yes ] distribute-default=never router-id=(172.16.0.0+$number)
 
 /interface bridge 
-	remove [find]
+	remove [find name=loopback]
+	remove [find name=wlan-client]
 	add name=loopback auto-mac=no admin-mac=01:00:00:00:01:00
 	add name=wlan-client
-/interface ethernet
-	 set master-port=none [find]
 /ipv6 address
 	remove [find dynamic=no  ]
 	add address=("fd58:9c23:3615::".$number."/128") advertise=no interface=loopback
@@ -57,13 +56,13 @@
 }
 /ip dhcp-server network
 /ip dns
-set allow-remote-requests=yes
+	set allow-remote-requests=yes servers=fd58:9c23:3615::fffe
 
-/ip address add address=(172.16.0.0+$number) interface=loopback
+/ip address add address=(172.16.0.0+$number."/32") interface=loopback
 
 {
 	:local index 0
-	:foreach interf in=[/interface ethernet find] do={
+	:foreach interf in=[/interface ethernet find where !slave] do={
 		:if ($index<$maxIfCount) do={
 			:local ifname [/interface get value-name=name $interf]
 			:local poolname ($ifname."-pool")
@@ -102,8 +101,8 @@ add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
 
 /system script
 remove [find name=check-master]
-add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="{\
-    \n    :local number $number\
+add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="{\
+    \n    :local number [/file get value-name=contents id]\
     \n    :local masterCount 0\
     \n    :if (\$number>0) do={\
     \n        :for master from=0 to=(\$number-1) step=1 do={\
@@ -117,9 +116,9 @@ add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,se
     \n        :if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={ :set \$isMaster \$addr }\
     \n    }\
     \n    :if (\$masterCount > 0) do={\
-    \n        /ip dns set servers=fd58:9c23:3615::ffff\
     \n        /ip address remove [find where interface~\"^gre6-tunnel\"]\
     \n        /interface gre6 remove [find where name~\"^gre6-tunnel\"]\
+    \n        /interface eoipv6 remove [find where name~\"^eoipv6-tunnel\"]\
     \n        :if (\$isMaster!=0) do={/ipv6 address remove \$isMaster}\
     \n        :foreach addr in=[/ipv6 address find where interface=loopback] do={\
     \n            if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={\
@@ -128,25 +127,29 @@ add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,se
     \n        }\
     \n        :if ([:len [/interface gre6 find where name=\"gre6-master-tunnel\"]]=0) do={\
     \n            /interface gre6 add local-address=(\"fd58:9c23:3615::\".\$number) remote-address=fd58:9c23:3615::ffff name=\"gre6-master-tunnel\"\
+    \n            /interface eoipv6 add local-address=(\"fd58:9c23:3615::\".\$number) remote-address=fd58:9c23:3615::ffff name=\"eoipv6-master-tunnel\" tunnel-id=\$number\
     \n            /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
     \n            /ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            /routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
+    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
     \n        }\
     \n        /caps-man manager set enabled=no\
     \n    } else={\
     \n        /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
     \n        /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n        /interface gre6 remove [find where name=\"gre6-master-tunnel\"]\
+    \n        /interface eoipv6 remove [find where name=\"eoipv6-master-tunnel\"]\
     \n        :if (\$isMaster=0) do={\
     \n            /ipv6 address add address=fd58:9c23:3615::ffff/128 interface=loopback\
     \n            /caps-man radio provision [find where !interface]\
+    \n            /caps-man manager set enabled=yes\
     \n        }\
-    \n        /caps-man manager set enabled=yes\
     \n        :for tunnel from=0 to=50 step=1 do={\
     \n            :if (\$number != \$tunnel) do={\
     \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0 && [:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                    /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
+    \n                    /interface eoipv6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
     \n                    /ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
     \n                    /ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
     \n                    /routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
@@ -158,11 +161,12 @@ add name=check-master policy=ftp,reboot,read,write,policy,test,password,sniff,se
     \n}"
 
 
+
 /system scheduler
 	remove [find name=check-master]
 	add interval=1m name=check-master on-event="/system script run check-master"
 
-
-/interface wireless cap set caps-man-addresses=fd58:9c23:3615::ffff enabled=yes interfaces=[/interface wireless find]
+/interface wireless cap
+	set enabled=yes interfaces=[/interface wireless find] certificate=none
 
 
