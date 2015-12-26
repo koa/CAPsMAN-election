@@ -4,7 +4,9 @@
 :global maxIfCount 8
 
 /interface wireless cap set enabled=no 
-/interface wireless set country=switzerland [find] frequency-mode=regulatory-domain
+:if ([:len [/interface wireless find]]>0) do={
+	/interface wireless set country=switzerland [find] frequency-mode=regulatory-domain
+}
 
 /certificate
 	remove [find]
@@ -117,6 +119,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n    }\
     \n    :if (\$masterCount > 0) do={\
     \n        /ip address remove [find where interface~\"^gre6-tunnel\"]\
+    \n        /ipv6 dhcp-client remove [find where interface=gre6-master-tunnel]\
     \n        /interface gre6 remove [find where name~\"^gre6-tunnel\"]\
     \n        /interface eoipv6 remove [find where name~\"^eoipv6-tunnel\"]\
     \n        :if (\$isMaster!=0) do={/ipv6 address remove \$isMaster}\
@@ -133,7 +136,9 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            /routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
     \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
+    \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
+    \n        /ipv6 address set from-pool=local-v6-pool [/ipv6 address find from-pool=public-pool]\
     \n        /caps-man manager set enabled=no\
     \n    } else={\
     \n        /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
@@ -145,15 +150,19 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /caps-man radio provision [find where !interface]\
     \n            /caps-man manager set enabled=yes\
     \n        }\
-    \n        :for tunnel from=0 to=50 step=1 do={\
+    \n        :for tunnel from=0 to=55 step=1 do={\
     \n            :if (\$number != \$tunnel) do={\
-    \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0 && [:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
-    \n                    /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
-    \n                    /interface eoipv6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
-    \n                    /ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
-    \n                    /ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
-    \n                    /routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
-    \n                    /routing ospf network add area=backbone network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")\
+    \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0) do={\
+    \n                    if ([:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
+    \n                      /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
+    \n                      /ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
+    \n                      /ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
+    \n                      /routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
+    \n                      /routing ospf network add area=backbone network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")\
+    \n                    }\
+    \n                    if ([:len [/interface eoipv6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
+    \n                      /interface eoipv6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
+    \n                    }\
     \n                }\
     \n            }\
     \n        }\
@@ -161,12 +170,13 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n}"
 
 
-
 /system scheduler
 	remove [find name=check-master]
 	add interval=1m name=check-master on-event="/system script run check-master"
 
-/interface wireless cap
-	set enabled=yes interfaces=[/interface wireless find] certificate=none
+:if ([:len [/interface wireless find]]>0) do={
+	/interface wireless cap
+		set enabled=yes interfaces=[/interface wireless find] certificate=none
+}
 
 
