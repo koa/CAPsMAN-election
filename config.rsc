@@ -1,7 +1,7 @@
 
 :global number [/file get value-name=contents id]
 
-:global maxIfCount 8
+:global maxIfCount 20
 
 /interface wireless cap set enabled=no 
 :if ([:len [/interface wireless find]]>0) do={
@@ -15,6 +15,7 @@
 #	 set master-port=none [find]
 
 /routing ospf-v3 instance
+	remove [find default=no]
 	set [ find default=yes ] distribute-default=never router-id=(172.16.0.0+$number)
 
 /interface bridge 
@@ -30,7 +31,7 @@
 	remove [find]
 	add area=backbone interface=loopback passive=yes
 
-	:foreach interf in=[/interface ethernet find] do={
+	:foreach interf in=[/interface ethernet find master-port=none] do={
 		add area=backbone interface=$interf
 	}
 
@@ -40,23 +41,22 @@
 /routing ospf network remove [find]
 /interface gre6 remove [find]
 {
-	:local myWlanIp (10.0.0.1+$number*256*256)
-	:local myWlanNet ((10.0.0.0+$number*256*256)."/16")
+	:local myWlanIp (10.0.252.1+$number*256*256)
+	:local myWlanNet ((10.0.252.0+$number*256*256)."/22")
 	/ip address 
 		remove [find]
-		add interface=wlan-client address=((10.0.0.1+$number*256*256)."/16")
+		add interface=wlan-client address=((10.0.252.1+$number*256*256)."/22")
 	/ip pool
 		remove [find]
-		add name=wlan-client-pool ranges=((10.0.250.0+$number*256*256)."-".(10.0.255.255+$number*256*256))
+		add name=wlan-client-pool ranges=((10.0.253.0+$number*256*256)."-".(10.0.255.254+$number*256*256))
 	/ip dhcp-server 
 		remove [find]
 		add disabled=no interface=wlan-client name=dhcp-client-wlan address-pool=wlan-client-pool
 	/ip dhcp-server network
 		remove [find]
-		add address=($myWlanNet."") dns-server=(10.0.0.1+$number*256*256) gateway=(10.0.0.1+$number*256*256)
+		add address=($myWlanNet."") dns-server=(10.0.252.1+$number*256*256) gateway=(10.0.252.1+$number*256*256)
 
 }
-/ip dhcp-server network
 /ip dns
 	set allow-remote-requests=yes servers=fd58:9c23:3615::fffe
 
@@ -69,17 +69,17 @@
 			:local ifname [/interface get value-name=name $interf]
 			:local poolname ($ifname."-pool")
 			:local dhcpname ("dhcp-".$ifname)
-			:local ifNetIp [:toip (172.17.0.0+(16*($maxIfCount*$number+$index)))]
+			:local ifNetIp [:toip (10.0.0.0+(256*(256*$number+$index)))]
 			/ip address remove [find dynamic=no interface=$ifname]
 			/ip pool remove [find name=$poolname]
 			/ip dhcp-server remove [find interface=$ifname]
 			/ip dhcp-server network remove [find gateway=($ifNetIp+1)]
 
-			:put (($ifNetIp+1)."/28")
-			/ip address add address=(($ifNetIp+1)."/28") interface=$interf
-			/ip pool add name=$poolname ranges=(($ifNetIp+2)."-".($ifNetIp+14))
+			:put (($ifNetIp+1)."/24")
+			/ip address add address=(($ifNetIp+1)."/24") interface=$interf
+			/ip pool add name=$poolname ranges=(($ifNetIp+50)."-".($ifNetIp+254))
 			/ip dhcp-server add disabled=no interface=$ifname name=$dhcpname address-pool=$poolname
-			/ip dhcp-server network add address=($ifNetIp."/28") dns-server=($ifNetIp+1) gateway=($ifNetIp+1)
+			/ip dhcp-server network add address=($ifNetIp."/24") dns-server=($ifNetIp+1) gateway=($ifNetIp+1)
 		}
 		:set $index ($index+1)
 	}
