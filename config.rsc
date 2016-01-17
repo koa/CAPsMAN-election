@@ -187,7 +187,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 			add name=("default-".$number) passphrase=QK1ga6XtawnxYPQzTULgejI1gm8FTg
 		}
 	/caps-man configuration
-		add name=("default-".$number) security=("default-".$number) ssid=("master-".$number)
+		add name=("default-".$number) security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client
 
 }
 :if ([:len [/caps-man provisioning find]]<1) do={
