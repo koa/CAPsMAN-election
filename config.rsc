@@ -40,6 +40,7 @@
 	set [ find default=yes ] distribute-default=if-installed-as-type-1 redistribute-connected=as-type-1 router-id=(172.16.0.0+$number)
 /routing ospf network remove [find]
 /interface gre6 remove [find]
+/interface eoipv6 remove [find]
 {
 	:local myWlanIp (10.0.252.1+$number*256*256)
 	:local myWlanNet ((10.0.252.0+$number*256*256)."/22")
@@ -135,7 +136,8 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            /routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
-    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
+    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=non\
+    e\
     \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
     \n        /ipv6 address set from-pool=local-v6-pool [/ipv6 address find from-pool=public-pool]\
@@ -149,6 +151,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /ipv6 address add address=fd58:9c23:3615::ffff/128 interface=loopback\
     \n            /caps-man radio provision [find where !interface]\
     \n            /caps-man manager set enabled=yes\
+    \n            /interface wireless cap set discovery-interfaces=loopback\
     \n        }\
     \n        :for tunnel from=0 to=55 step=1 do={\
     \n            :if (\$number != \$tunnel) do={\
@@ -177,6 +180,19 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 :if ([:len [/interface wireless find]]>0) do={
 	/interface wireless cap
 		set enabled=yes interfaces=[/interface wireless find] certificate=none
+}
+:if ([:len [/caps-man configuration find]]<1) do={
+	/caps-man security
+		:if ([:len [find where name=("default-".$number)]]<1) do={
+			add name=("default-".$number) passphrase=QK1ga6XtawnxYPQzTULgejI1gm8FTg
+		}
+	/caps-man configuration
+		add name=("default-".$number) security=("default-".$number) ssid=("master-".$number)
+
+}
+:if ([:len [/caps-man provisioning find]]<1) do={
+	/caps-man provisioning
+		add action=create-enabled name-format=prefix-identity master-configuration=([/caps-man configuration find]->0) name-prefix=cap
 }
 
 
