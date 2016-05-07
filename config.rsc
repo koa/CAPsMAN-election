@@ -138,7 +138,8 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            /routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
-    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
+    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=no\
+    ne\
     \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
     \n        /ipv6 address set from-pool=local-v6-pool [/ipv6 address find from-pool=public-pool]\
@@ -155,10 +156,13 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /interface wireless cap set discovery-interfaces=loopback\
     \n        }\
     \n        :for tunnel from=0 to=55 step=1 do={\
+    \n            :put (\"Tunnel: \".\$tunnel)\
     \n            :if (\$number != \$tunnel) do={\
     \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0) do={\
     \n                    /ip dns set servers=\"\"\
-    \n                    /ip dns static add address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"station-\".\$tunnel.\".lan\")\
+    \n                    :if ([:len [/ip dns static find where name=(\"station-\".\$tunnel.\".lan\")]] = 0) do={\
+    \n                      /ip dns static add address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"station-\".\$tunnel.\".lan\")\
+    \n                    }\
     \n                    if ([:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                      /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
     \n                      /ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
@@ -174,6 +178,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n        }\
     \n    }\
     \n}"
+
 
 
 
