@@ -184,7 +184,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 
 /system scheduler
 	remove [find name=check-master]
-	add interval=1m name=check-master on-event="/system script run check-master"
+	add interval=1m name=check-master on-event="/system script run check-master" start-time=startup
 
 #/interface wireless cap
 #	set enabled=yes interfaces=[/interface wireless find] certificate=none
