@@ -138,8 +138,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            /routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
-    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=no\
-    ne\
+    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
     \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
     \n        /ipv6 address set from-pool=local-v6-pool [/ipv6 address find from-pool=public-pool]\
@@ -159,7 +158,6 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            :put (\"Tunnel: \".\$tunnel)\
     \n            :if (\$number != \$tunnel) do={\
     \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0) do={\
-    \n                    /ip dns set servers=\"\"\
     \n                    :if ([:len [/ip dns static find where name=(\"station-\".\$tunnel.\".lan\")]] = 0) do={\
     \n                      /ip dns static add address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"station-\".\$tunnel.\".lan\")\
     \n                    }\
