@@ -122,7 +122,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n    :if (\$masterCount > 0) do={\
     \n        #/ip dns set servers=\"fd58:9c23:3615::fffe\"\
     \n        /ip address remove [find where interface~\"^gre6-tunnel\"]\
-    \n        /ipv6 dhcp-client remove [find where interface=gre6-master-tunnel]\
+    \n        #/ipv6 dhcp-client remove [find where interface=gre6-master-tunnel]\
     \n        /interface gre6 remove [find where name~\"^gre6-tunnel\"]\
     \n        /interface eoipv6 remove [find where name~\"^eoipv6-tunnel\"]\
     \n        :if (\$isMaster!=0) do={/ipv6 address remove \$isMaster}\
@@ -131,13 +131,13 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n                /ipv6 address remove \$addr\
     \n            }\
     \n        }\
-    \n        :if ([:len [/interface gre6 find where name=\"gre6-master-tunnel\"]]=0) do={\
+    \n        :if ([:len [/interface eoipv6 find where name=\"eoipv6-master-tunnel\"]]=0) do={\
     \n            /interface gre6 add local-address=(\"fd58:9c23:3615::\".\$number) remote-address=fd58:9c23:3615::ffff name=\"gre6-master-tunnel\"\
     \n            /interface eoipv6 add local-address=(\"fd58:9c23:3615::\".\$number) remote-address=fd58:9c23:3615::ffff name=\"eoipv6-master-tunnel\" tunnel-id=\$number\
     \n            /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
-    \n            /ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
-    \n            /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
-    \n            /routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
+    \n            #/ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
+    \n            #/routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
+    \n            #/routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
     \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
     \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
@@ -145,8 +145,8 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n        /caps-man manager set enabled=no\
     \n    } else={\
     \n        /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
-    \n        /routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
-    \n        /interface gre6 remove [find where name=\"gre6-master-tunnel\"]\
+    \n        #/routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
+    \n        #/interface gre6 remove [find where name=\"gre6-master-tunnel\"]\
     \n        /interface eoipv6 remove [find where name=\"eoipv6-master-tunnel\"]\
     \n        :if (\$isMaster=0) do={\
     \n            /ipv6 address add address=fd58:9c23:3615::ffff/128 interface=loopback\
@@ -164,10 +164,10 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n                    }\
     \n                    if ([:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                      /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
-    \n                      /ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
-    \n                      /ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
-    \n                      /routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
-    \n                      /routing ospf network add area=backbone network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")\
+    \n                      #/ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
+    \n                      #/ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
+    \n                      #/routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
+    \n                      #/routing ospf network add area=backbone network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")\
     \n                    }\
     \n                    if ([:len [/interface eoipv6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                      /interface eoipv6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
