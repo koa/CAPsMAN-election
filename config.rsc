@@ -120,7 +120,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n        :if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={ :set \$isMaster \$addr }\
     \n    }\
     \n    :if (\$masterCount > 0) do={\
-    \n        /ip dns set servers=\"fd58:9c23:3615::fffe\"\
+    \n        #/ip dns set servers=\"fd58:9c23:3615::fffe\"\
     \n        /ip address remove [find where interface~\"^gre6-tunnel\"]\
     \n        /ipv6 dhcp-client remove [find where interface=gre6-master-tunnel]\
     \n        /interface gre6 remove [find where name~\"^gre6-tunnel\"]\
@@ -158,6 +158,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            :put (\"Tunnel: \".\$tunnel)\
     \n            :if (\$number != \$tunnel) do={\
     \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0) do={\
+    \n                    #/ip dns set servers=\"\"\
     \n                    :if ([:len [/ip dns static find where name=(\"station-\".\$tunnel.\".lan\")]] = 0) do={\
     \n                      /ip dns static add address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"station-\".\$tunnel.\".lan\")\
     \n                    }\
@@ -175,9 +176,57 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            }\
     \n        }\
     \n    }\
+    \n  :foreach interf in=[/interface ethernet find master-port=none] do={\
+    \n    :local hasOtherMaster 0\
+    \n    :local hasClient 0\
+    \n    :local interfName [/interface ethernet get value-name=name \$interf]\
+    \n    :foreach neighbor in=[/routing ospf-v3 neighbor find where interface=\$interfName] do={\
+    \n      :local neighborId [/routing ospf-v3 neighbor get value-name=router-id \$neighbor]\
+    \n      :local myId [/routing ospf-v3 instance get value-name=router-id [/routing ospf-v3 neighbor get value-name=instance \$neighbor]]\
+    \n      :if (\$myId>\$neighborId) do={:set \$hasOtherMaster 1}\
+    \n      :if (\$myId<\$neighborId) do={:set \$hasClient 1}\
+    \n    }\
+    \n    :if (\$hasOtherMaster > 0) do={\
+    \n      # ensure dhcp-client is activated and network is in ospf range\
+    \n      #:put (\"Go client: \".\$interfName)\
+    \n      :if ([:len [/ip dhcp-client find where interface=\$interfName]] < 1) do={\
+    \n        /ip dhcp-client add add-default-route=no dhcp-options=hostname,clientid disabled=no interface=\$interfName use-peer-dns=no use-peer-ntp=no\
+    \n      } \
+    \n      /ip address set disabled=yes [/ip address find where dynamic=no interface=\$interfName]\
+    \n      /ip dhcp-server set disabled=yes [/ip dhcp-server find where interface=\$interfName]\
+    \n      /ip dhcp-client set disabled=no [/ip dhcp-client find where interface=\$interfName]\
+    \n      :local network [/ip address get value-name=network   [/ip address find where dynamic=yes interface=\$interfName]] \
+    \n      :local ipAddress [/ip address get value-name=address  [/ip address find where dynamic=yes interface=\$interfName]]\
+    \n      :local slashPos [:find \$ipAddress \"/\"]\
+    \n      #:put \$network\
+    \n      #:put \$ipAddress\
+    \n      :local ospfNet (\$network.[:pick \$ipAddress \$slashPos [:len \$ipAddress]])\
+    \n      #:put \$ospfNet\
+    \n      :if ([:len [/routing ospf network find where network=\$ospfNet]]<1) do={\
+    \n        /routing ospf network add network=\$ospfNet disabled=no area=backbone\
+    \n      }\
+    \n    } else={\
+    \n      # ensure dhcp-sever is activated and network is in ospf range\
+    \n      #:put (\"Go server: \".\$interfName)\
+    \n      /ip address set disabled=no [/ip address find where dynamic=no interface=\$interfName]\
+    \n      /ip dhcp-server set disabled=no [/ip dhcp-server find where interface=\$interfName]\
+    \n      /ip dhcp-client set disabled=yes [/ip dhcp-client find where interface=\$interfName]\
+    \n      :if (\$hasClient > 0) do={\
+    \n        :local network [/ip address get value-name=network   [/ip address find where dynamic=no interface=\$interfName]] \
+    \n        :local ipAddress [/ip address get value-name=address  [/ip address find where dynamic=no interface=\$interfName]]\
+    \n        :local slashPos [:find \$ipAddress \"/\"]\
+    \n        #:put \$network\
+    \n        #:put \$ipAddress\
+    \n        :local ospfNet (\$network.[:pick \$ipAddress \$slashPos [:len \$ipAddress]])\
+    \n        #:put \$ospfNet\
+    \n        :if ([:len [/routing ospf network find where network=\$ospfNet]]<1) do={\
+    \n          /routing ospf network add network=\$ospfNet disabled=no area=backbone\
+    \n        }\
+    \n      }\
+    \n    }\
+    \n  }\
+    \n\
     \n}"
-
-
 
 
 /system scheduler
