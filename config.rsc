@@ -1,5 +1,14 @@
 
-:global number [/file get value-name=contents id]
+:global number
+:if ([:len [/ip address find where interface=loopback]] > 0) do={
+	:local loopbackip [/ip address get value-name=address [/ip address find where interface=loopback]]
+	:set number ([:toip [:pick $loopbackip 0 [:find $loopbackip "/"]]]-172.16.0.0)
+} else={
+	:if ($number < 1) do={
+		:error "no loopback found"
+	}
+}
+:put ("Number: ".$number)
 
 :global maxIfCount 20
 
@@ -7,17 +16,17 @@
 :if ([:len [/interface wireless find]]>0) do={
 	/interface wireless set country=switzerland [find] frequency-mode=regulatory-domain
 }
-
 /certificate
 	remove [find]
 
 /interface ethernet
 #	 set master-port=none [find]
-
+:put "setup ospfv3"
 /routing ospf-v3 instance
 	remove [find default=no]
 	set [ find default=yes ] distribute-default=never router-id=(172.16.0.0+$number)
 
+:put "create loopback"
 /interface bridge 
 	remove [find name=loopback]
 	remove [find name=wlan-client]
@@ -26,6 +35,9 @@
 /ipv6 address
 	remove [find dynamic=no  ]
 	add address=("fd58:9c23:3615::".$number."/128") advertise=no interface=loopback
+/ip address 
+	remove [find]
+	add address=(172.16.0.0+$number."/32") interface=loopback
 
 /routing ospf-v3 interface
 	remove [find]
@@ -36,16 +48,22 @@
 	}
 
 
+:put "setup ospf"
 /routing ospf instance
 	set [ find default=yes ] distribute-default=if-installed-as-type-1 redistribute-connected=as-type-1 router-id=(172.16.0.0+$number)
-/routing ospf network remove [find]
+/routing ospf network 
+	remove [find]
+	add area=backbone network=((10.0.0.0+$number*256*256)."/16")
+	add area=backbone network=((172.16.0.0+$number)."/32")
+
+:put "cleanup gre6 and eoipv6"
 /interface gre6 remove [find]
 /interface eoipv6 remove [find]
+:put "setup wlan"
 {
 	:local myWlanIp (10.0.252.1+$number*256*256)
 	:local myWlanNet ((10.0.252.0+$number*256*256)."/22")
 	/ip address 
-		remove [find]
 		add interface=wlan-client address=((10.0.252.1+$number*256*256)."/22")
 	/ip pool
 		remove [find]
@@ -58,12 +76,15 @@
 		add address=($myWlanNet."") dns-server=(10.0.252.1+$number*256*256) gateway=(10.0.252.1+$number*256*256)
 
 }
+:put "setup dns"
 /ip dns
 	set allow-remote-requests=yes servers=fd58:9c23:3615::fffe
+	static remove [find where address=("fd58:9c23:3615::".$number)]
 	static add address=("fd58:9c23:3615::".$number) name=("station-".$number.".lan")
 
-/ip address add address=(172.16.0.0+$number."/32") interface=loopback
 
+:put "setup ethernet interfaces"
+/ip dhcp-client remove [find where add-default-route=no]
 {
 	:local index 0
 	:foreach interf in=[/interface ethernet find where !slave] do={
@@ -88,25 +109,12 @@
 }
 
 
-
-/caps-man channel
-remove [find]
-add band=2ghz-onlyn extension-channel=disabled frequency=2412 name=24-001
-add band=2ghz-onlyn extension-channel=disabled frequency=2432 name=24-005
-add band=2ghz-onlyn extension-channel=disabled frequency=2452 name=24-009
-add band=2ghz-onlyn extension-channel=disabled frequency=2472 name=24-013
-add band=5ghz-onlyn extension-channel=Ce frequency=5180 name=5-036
-add band=5ghz-onlyn extension-channel=Ce frequency=5220 name=5-044
-add band=5ghz-onlyn extension-channel=Ce frequency=5260 name=5-052
-add band=5ghz-onlyn extension-channel=Ce frequency=5300 name=5-060
-add band=5ghz-onlyac extension-channel=Ceee frequency=5500 name=5-100
-add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
-
-
+:put "setup perdiodical update"
 /system script
 remove [find name=check-master]
 add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="{\
-    \n    :local number [/file get value-name=contents id]\
+    \n    :global loopbackip [/ip address get value-name=address [/ip address find where interface=loopback]]\
+    \n    :global number ([:toip [:pick \$loopbackip 0 [:find \$loopbackip \"/\"]]]-172.16.0.0)\
     \n    :local masterCount 0\
     \n    :if (\$number>0) do={\
     \n        :for master from=0 to=(\$number-1) step=1 do={\
@@ -127,7 +135,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n        /interface eoipv6 remove [find where name~\"^eoipv6-tunnel\"]\
     \n        :if (\$isMaster!=0) do={/ipv6 address remove \$isMaster}\
     \n        :foreach addr in=[/ipv6 address find where interface=loopback] do={\
-    \n            if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={\
+    \n            :if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={\
     \n                /ipv6 address remove \$addr\
     \n            }\
     \n        }\
@@ -138,7 +146,8 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            #/ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            #/routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            #/routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
-    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=none\
+    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=no\
+    ne\
     \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
     \n        /ipv6 address set from-pool=local-v6-pool [/ipv6 address find from-pool=public-pool]\
@@ -146,7 +155,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n    } else={\
     \n        /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
     \n        #/routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
-    \n        #/interface gre6 remove [find where name=\"gre6-master-tunnel\"]\
+    \n        /interface gre6 remove [find where name=\"gre6-master-tunnel\"]\
     \n        /interface eoipv6 remove [find where name=\"eoipv6-master-tunnel\"]\
     \n        :if (\$isMaster=0) do={\
     \n            /ipv6 address add address=fd58:9c23:3615::ffff/128 interface=loopback\
@@ -154,7 +163,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            /caps-man manager set enabled=yes\
     \n            /interface wireless cap set discovery-interfaces=loopback\
     \n        }\
-    \n        :for tunnel from=0 to=55 step=1 do={\
+    \n        :for tunnel from=0 to=100 step=1 do={\
     \n            :put (\"Tunnel: \".\$tunnel)\
     \n            :if (\$number != \$tunnel) do={\
     \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0) do={\
@@ -162,14 +171,14 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n                    :if ([:len [/ip dns static find where name=(\"station-\".\$tunnel.\".lan\")]] = 0) do={\
     \n                      /ip dns static add address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"station-\".\$tunnel.\".lan\")\
     \n                    }\
-    \n                    if ([:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
+    \n                    :if ([:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                      /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
     \n                      #/ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
     \n                      #/ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
     \n                      #/routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
     \n                      #/routing ospf network add area=backbone network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")\
     \n                    }\
-    \n                    if ([:len [/interface eoipv6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
+    \n                    :if ([:len [/interface eoipv6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
     \n                      /interface eoipv6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
     \n                    }\
     \n                }\
@@ -208,19 +217,21 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n    } else={\
     \n      # ensure dhcp-sever is activated and network is in ospf range\
     \n      #:put (\"Go server: \".\$interfName)\
-    \n      /ip address set disabled=no [/ip address find where dynamic=no interface=\$interfName]\
-    \n      /ip dhcp-server set disabled=no [/ip dhcp-server find where interface=\$interfName]\
-    \n      /ip dhcp-client set disabled=yes [/ip dhcp-client find where interface=\$interfName]\
-    \n      :if (\$hasClient > 0) do={\
-    \n        :local network [/ip address get value-name=network   [/ip address find where dynamic=no interface=\$interfName]] \
-    \n        :local ipAddress [/ip address get value-name=address  [/ip address find where dynamic=no interface=\$interfName]]\
-    \n        :local slashPos [:find \$ipAddress \"/\"]\
-    \n        #:put \$network\
-    \n        #:put \$ipAddress\
-    \n        :local ospfNet (\$network.[:pick \$ipAddress \$slashPos [:len \$ipAddress]])\
-    \n        #:put \$ospfNet\
-    \n        :if ([:len [/routing ospf network find where network=\$ospfNet]]<1) do={\
-    \n          /routing ospf network add network=\$ospfNet disabled=no area=backbone\
+    \n      :if ([:len [/ip dhcp-client find where add-default-route=yes ]]<1) do={\
+    \n        /ip address set disabled=no [/ip address find where dynamic=no interface=\$interfName]\
+    \n        /ip dhcp-server set disabled=no [/ip dhcp-server find where interface=\$interfName]\
+    \n        /ip dhcp-client set disabled=yes [/ip dhcp-client find where interface=\$interfName]\
+    \n        :if (\$hasClient > 0) do={\
+    \n          :local network [/ip address get value-name=network   [/ip address find where dynamic=no interface=\$interfName]] \
+    \n          :local ipAddress [/ip address get value-name=address  [/ip address find where dynamic=no interface=\$interfName]]  \
+    \n          :local slashPos [:find \$ipAddress \"/\"]\
+    \n          #:put \$network\
+    \n          #:put \$ipAddress\
+    \n          :local ospfNet (\$network.[:pick \$ipAddress \$slashPos [:len \$ipAddress]])\
+    \n          #:put \$ospfNet\
+    \n          :if ([:len [/routing ospf network find where network=\$ospfNet]]<1) do={\
+    \n            /routing ospf network add network=\$ospfNet disabled=no area=backbone\
+    \n          }\
     \n        }\
     \n      }\
     \n    }\
@@ -232,6 +243,21 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 /system scheduler
 	remove [find name=check-master]
 	add interval=1m name=check-master on-event="/system script run check-master" start-time=startup
+
+:put "configure capsman"
+/caps-man channel
+remove [find]
+add band=2ghz-onlyn extension-channel=disabled frequency=2412 name=24-001
+add band=2ghz-onlyn extension-channel=disabled frequency=2432 name=24-005
+add band=2ghz-onlyn extension-channel=disabled frequency=2452 name=24-009
+add band=2ghz-onlyn extension-channel=disabled frequency=2472 name=24-013
+add band=5ghz-onlyn extension-channel=Ce frequency=5180 name=5-036
+add band=5ghz-onlyn extension-channel=Ce frequency=5220 name=5-044
+add band=5ghz-onlyn extension-channel=Ce frequency=5260 name=5-052
+add band=5ghz-onlyn extension-channel=Ce frequency=5300 name=5-060
+add band=5ghz-onlyac extension-channel=Ceee frequency=5500 name=5-100
+add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
+
 
 #/interface wireless cap
 #	set enabled=yes interfaces=[/interface wireless find] certificate=none
