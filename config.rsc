@@ -146,8 +146,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n            #/ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            #/routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
     \n            #/routing ospf network add area=backbone network=((172.16.1.0+(\$number-1)*4).\"/30\")\
-    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual-AP] certificate=no\
-    ne\
+    \n            /interface wireless cap set caps-man-addresses=\"\" discovery-interfaces=eoipv6-master-tunnel enabled=yes interfaces=[/interface wireless find where interface-type!=virtual] certificate=none\
     \n            /ipv6 dhcp-client add interface=gre6-master-tunnel pool-name=local-v6-pool pool-prefix-length=60 use-peer-dns=no\
     \n        }\
     \n        /ipv6 address set from-pool=local-v6-pool [/ipv6 address find from-pool=public-pool]\
@@ -204,16 +203,21 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n      /ip address set disabled=yes [/ip address find where dynamic=no interface=\$interfName]\
     \n      /ip dhcp-server set disabled=yes [/ip dhcp-server find where interface=\$interfName]\
     \n      /ip dhcp-client set disabled=no [/ip dhcp-client find where interface=\$interfName]\
-    \n      :local network [/ip address get value-name=network   [/ip address find where dynamic=yes interface=\$interfName]] \
-    \n      :local ipAddress [/ip address get value-name=address  [/ip address find where dynamic=yes interface=\$interfName]]\
-    \n      :local slashPos [:find \$ipAddress \"/\"]\
-    \n      #:put \$network\
-    \n      #:put \$ipAddress\
-    \n      :local ospfNet (\$network.[:pick \$ipAddress \$slashPos [:len \$ipAddress]])\
-    \n      #:put \$ospfNet\
-    \n      :if ([:len [/routing ospf network find where network=\$ospfNet]]<1) do={\
-    \n        /routing ospf network add network=\$ospfNet disabled=no area=backbone\
-    \n      }\
+    \n      :local localIpAddress [/ip address find where dynamic=yes interface=\$interfName]\
+    \n      :if ([:len \$localIpAddress]=1) do={\
+    \n\t      :local network [/ip address get value-name=network \$localIpAddress]\
+    \n\t      :local ipAddress [/ip address get value-name=address \$localIpAddress]\
+    \n\t      :local slashPos [:find \$ipAddress \"/\"]\
+    \n\t      #:put \$network\
+    \n\t      #:put \$ipAddress\
+    \n\t      :local ospfNet (\$network.[:pick \$ipAddress \$slashPos [:len \$ipAddress]])\
+    \n\t      #:put \$ospfNet\
+    \n\t      :if ([:len [/routing ospf network find where network=\$ospfNet]]<1) do={\
+    \n\t\t/routing ospf network add network=\$ospfNet disabled=no area=backbone\
+    \n\t      }\
+    \n\t} else={\
+    \n\t\t/ip dhcp-client release [find where interface=\$interfName]\
+    \n\t}\
     \n    } else={\
     \n      # ensure dhcp-sever is activated and network is in ospf range\
     \n      #:put (\"Go server: \".\$interfName)\
@@ -271,7 +275,7 @@ add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
 			add name=("default-".$number) passphrase=QK1ga6XtawnxYPQzTULgejI1gm8FTg
 		}
 	/caps-man configuration
-		add name=("default-".$number) security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client
+		add name=("default-".$number) security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client country=switzerland
 
 }
 :if ([:len [/caps-man provisioning find]]<1) do={
