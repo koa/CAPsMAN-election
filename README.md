@@ -48,3 +48,46 @@ The IPv4-Configuration on a ethernet device depends if there is a other router w
   * It has additionally the ip fd58:9c23:3615:ffff
 * There is a eoipv6 tunnel between CAPsMAN and all CAP devices
 * Every local WLAN device will be connected to CAPsMAN
+
+# Setup
+## Requirements
+* Some Routers with RouterOS from Mikrotik
+* Connections between the routers (Ethernet cable)
+
+## Software Update (if needed) 
+1. Update router at least to 6.36.3
+
+  `/system package update install`
+
+2. Install wireless-rep (if not already there)
+  1. Download extra packages from http://www.mikrotik.com/download for your Platform
+  2. Extract wireless-rep-* and copy to your device
+  3. Reboot it
+3. Enable wireless-rep and IPv6
+
+```
+/system package
+  enable ipv6
+  enable wireless-rep
+/system reboot
+```
+
+## Setup Configuration
+1. Log into device and remove all current configuration
+
+  `/system reset-configuration no-defaults=yes`
+
+2. Now connect device by serial console, mac-telnet (https://github.com/haakonnessjoen/MAC-Telnet) or Winbox (http://wiki.mikrotik.com/wiki/Manual:Winbox)
+3. Set *ID* to variable $number. Where *ID* is a unique number for this Device.
+
+  `:global number `*ID*
+
+4. Open config.rsc with your favorite text editor
+5. Copy and paste the whole content it into the console on router.
+6. Set password
+   `/password`
+7. Set a idendity
+   `/system identity set name=router-`*ID*
+
+Now you are ready and can connect a client PC to any ethernet-connection on your device.
+If your device has the *ID* 20 you can connect the web ui by http://172.16.0.20/
