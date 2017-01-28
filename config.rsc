@@ -200,9 +200,9 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n      :if ([:len [/ip dhcp-client find where interface=\$interfName]] < 1) do={\
     \n        /ip dhcp-client add add-default-route=no dhcp-options=hostname,clientid disabled=no interface=\$interfName use-peer-dns=no use-peer-ntp=no\
     \n      } \
-    \n      /ip address set disabled=yes [/ip address find where dynamic=no interface=\$interfName]\
-    \n      /ip dhcp-server set disabled=yes [/ip dhcp-server find where interface=\$interfName]\
-    \n      /ip dhcp-client set disabled=no [/ip dhcp-client find where interface=\$interfName]\
+    \n      /ip address set disabled=yes [/ip address find where dynamic=no disabled=no interface=\$interfName]\
+    \n      /ip dhcp-server set disabled=yes [/ip dhcp-server find where disabled=no interface=\$interfName]\
+    \n      /ip dhcp-client set disabled=no [/ip dhcp-client find where disabled=yes interface=\$interfName]\
     \n      :local localIpAddress [/ip address find where dynamic=yes interface=\$interfName]\
     \n      :if ([:len \$localIpAddress]=1) do={\
     \n\t      :local network [/ip address get value-name=network \$localIpAddress]\
@@ -222,9 +222,9 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n      # ensure dhcp-sever is activated and network is in ospf range\
     \n      #:put (\"Go server: \".\$interfName)\
     \n      :if ([:len [/ip dhcp-client find where add-default-route=yes ]]<1) do={\
-    \n        /ip address set disabled=no [/ip address find where dynamic=no interface=\$interfName]\
-    \n        /ip dhcp-server set disabled=no [/ip dhcp-server find where interface=\$interfName]\
-    \n        /ip dhcp-client set disabled=yes [/ip dhcp-client find where interface=\$interfName]\
+    \n        /ip address set disabled=no [/ip address find where dynamic=no disabled=yes interface=\$interfName]\
+    \n        /ip dhcp-server set disabled=no [/ip dhcp-server find where disabled=yes interface=\$interfName]\
+    \n        /ip dhcp-client set disabled=yes [/ip dhcp-client find where disabled=no interface=\$interfName]\
     \n        :if (\$hasClient > 0) do={\
     \n          :local network [/ip address get value-name=network   [/ip address find where dynamic=no interface=\$interfName]] \
     \n          :local ipAddress [/ip address get value-name=address  [/ip address find where dynamic=no interface=\$interfName]]  \
