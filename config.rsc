@@ -1,3 +1,5 @@
+/system package enable ipv6 
+/system package enable wireless
 
 :global number
 :if ([:len [/ip address find where interface=loopback]] > 0) do={
@@ -11,6 +13,8 @@
 :put ("Number: ".$number)
 
 :global maxIfCount 20
+:global v6prefix "fd7e:907d:34ab"
+#:global v6prefix "fd58:9c23:3615"
 
 /interface wireless cap set enabled=no 
 :if ([:len [/interface wireless find]]>0) do={
@@ -34,7 +38,7 @@
 	add name=wlan-client
 /ipv6 address
 	remove [find dynamic=no  ]
-	add address=("fd58:9c23:3615::".$number."/128") advertise=no interface=loopback
+	add address=($v6prefix."::".$number."/128") advertise=no interface=loopback
 /ip address 
 	remove [find]
 	add address=(172.16.0.0+$number."/32") interface=loopback
@@ -78,9 +82,9 @@
 }
 :put "setup dns"
 /ip dns
-	set allow-remote-requests=yes servers=fd58:9c23:3615::fffe
-	static remove [find where address=("fd58:9c23:3615::".$number)]
-	static add address=("fd58:9c23:3615::".$number) name=("station-".$number.".lan")
+	set allow-remote-requests=yes servers=($v6prefix."::fffe")
+	static remove [find where address=($v6prefix."::".$number)]
+	static add address=($v6prefix."::".$number) name=("station-".$number.".lan")
 
 
 :put "setup ethernet interfaces"
@@ -112,36 +116,37 @@
 :put "setup perdiodical update"
 /system script
 remove [find name=check-master]
-add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="{\
+add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source=("{\
     \n    :global loopbackip [/ip address get value-name=address [/ip address find where interface=loopback]]\
     \n    :global number ([:toip [:pick \$loopbackip 0 [:find \$loopbackip \"/\"]]]-172.16.0.0)\
+    \n    :global v6prefix \"".$v6prefix."\"\
     \n    :local masterCount 0\
     \n    :if (\$number>0) do={\
     \n        :for master from=0 to=(\$number-1) step=1 do={\
-    \n            :local masterIP [:toip6 (\"fd58:9c23:3615::\".\$master)]\
-    \n            :put \$master\
-    \n            :set \$masterCount (\$masterCount+[:ping \$masterIP count=1])\
+    \n            :local masterIP (\$v6prefix.\"::\".\$master.\"/128\")\
+    \n            #:put \$master\
+    \n            :set \$masterCount (\$masterCount+[:len [/ipv6 route find where dst-address=\$masterIP]])\
     \n        }\
     \n    }\
     \n    :local isMaster 0\
     \n    :foreach addr in=[/ipv6 address find where interface=loopback] do={\
-    \n        :if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={ :set \$isMaster \$addr }\
+    \n        :if ([/ipv6 address get \$addr address]=(\$v6prefix.\"::ffff/128\")) do={ :set \$isMaster \$addr }\
     \n    }\
     \n    :if (\$masterCount > 0) do={\
-    \n        #/ip dns set servers=\"fd58:9c23:3615::fffe\"\
+    \n        #/ip dns set servers=(\$v6prefix.\"::fffe\")\
     \n        /ip address remove [find where interface~\"^gre6-tunnel\"]\
     \n        #/ipv6 dhcp-client remove [find where interface=gre6-master-tunnel]\
     \n        /interface gre6 remove [find where name~\"^gre6-tunnel\"]\
     \n        /interface eoipv6 remove [find where name~\"^eoipv6-tunnel\"]\
     \n        :if (\$isMaster!=0) do={/ipv6 address remove \$isMaster}\
     \n        :foreach addr in=[/ipv6 address find where interface=loopback] do={\
-    \n            :if ([/ipv6 address get \$addr address]=\"fd58:9c23:3615::ffff/128\") do={\
+    \n            :if ([/ipv6 address get \$addr address]=(\$v6prefix.\"::ffff/128\")) do={\
     \n                /ipv6 address remove \$addr\
     \n            }\
     \n        }\
     \n        :if ([:len [/interface eoipv6 find where name=\"eoipv6-master-tunnel\"]]=0) do={\
-    \n            /interface gre6 add local-address=(\"fd58:9c23:3615::\".\$number) remote-address=fd58:9c23:3615::ffff name=\"gre6-master-tunnel\"\
-    \n            /interface eoipv6 add local-address=(\"fd58:9c23:3615::\".\$number) remote-address=fd58:9c23:3615::ffff name=\"eoipv6-master-tunnel\" tunnel-id=\$number\
+    \n            /interface gre6 add local-address=(\$v6prefix.\"::\".\$number) remote-address=(\$v6prefix.\"::ffff\") name=\"gre6-master-tunnel\"\
+    \n            /interface eoipv6 add local-address=(\$v6prefix.\"::\".\$number) remote-address=(\$v6prefix.\"::ffff\") name=\"eoipv6-master-tunnel\" tunnel-id=\$number\
     \n            /ip address remove [find address=((172.16.1.2+(\$number-1)*4).\"/30\")]\
     \n            #/ip address add address=((172.16.1.2+(\$number-1)*4).\"/30\") interface=gre6-master-tunnel\
     \n            #/routing ospf network remove [find network=((172.16.1.0+(\$number-1)*4).\"/30\")]\
@@ -157,28 +162,31 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n        /interface gre6 remove [find where name=\"gre6-master-tunnel\"]\
     \n        /interface eoipv6 remove [find where name=\"eoipv6-master-tunnel\"]\
     \n        :if (\$isMaster=0) do={\
-    \n            /ipv6 address add address=fd58:9c23:3615::ffff/128 interface=loopback\
+    \n            /ipv6 address add address=(\$v6prefix.\"::ffff/128\") interface=loopback\
     \n            /caps-man radio provision [find where !interface]\
     \n            /caps-man manager set enabled=yes\
     \n            /interface wireless cap set discovery-interfaces=loopback\
     \n        }\
     \n        :for tunnel from=0 to=100 step=1 do={\
-    \n            :put (\"Tunnel: \".\$tunnel)\
+    \n            #:put (\"Tunnel: \".\$tunnel)\
     \n            :if (\$number != \$tunnel) do={\
-    \n                :if ([:ping count=1 address=(\"fd58:9c23:3615::\".\$tunnel)]>0) do={\
-    \n                    #/ip dns set servers=\"\"\
+    \n                :local tunnelPrefix (\$v6prefix.\"::\".\$tunnel.\"/128\")\
+    \n                :local tunnelIP (\$v6prefix.\"::\".\$tunnel)\
+    \n                #:put (\"Check : \".\$tunnelIP)\
+    \n                :if ([:len [/ipv6 route find where dst-address=\$tunnelPrefix]]>0) do={\
+    \n                    #:put (\"Found: \".\$tunnel)
     \n                    :if ([:len [/ip dns static find where name=(\"station-\".\$tunnel.\".lan\")]] = 0) do={\
-    \n                      /ip dns static add address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"station-\".\$tunnel.\".lan\")\
+    \n                      /ip dns static add address=\$tunnelIP name=(\"station-\".\$tunnel.\".lan\")\
     \n                    }\
-    \n                    :if ([:len [/interface gre6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
-    \n                      /interface gre6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"gre6-tunnel\".\$tunnel)\
+    \n                    :if ([:len [/interface gre6 find remote-address=\$tunnelIP]]=0) do={\
+    \n                      /interface gre6 add local-address=(\$v6prefix.\"::ffff\") remote-address=\$tunnelIP name=(\"gre6-tunnel\".\$tunnel)\
     \n                      #/ip address remove [find address=((172.16.1.1+(\$tunnel-1)*4).\"/30\")]\
     \n                      #/ip address add address=((172.16.1.1+(\$tunnel-1)*4).\"/30\") interface=(\"gre6-tunnel\".\$tunnel)\
     \n                      #/routing ospf network remove [find network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")]\
     \n                      #/routing ospf network add area=backbone network=((172.16.1.0+(\$tunnel-1)*4).\"/30\")\
     \n                    }\
-    \n                    :if ([:len [/interface eoipv6 find remote-address=(\"fd58:9c23:3615::\".\$tunnel)]]=0) do={\
-    \n                      /interface eoipv6 add local-address=fd58:9c23:3615::ffff remote-address=(\"fd58:9c23:3615::\".\$tunnel) name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
+    \n                    :if ([:len [/interface eoipv6 find remote-address=\$tunnelIP]]=0) do={\
+    \n                      /interface eoipv6 add local-address=(\$v6prefix.\"::ffff\") remote-address=\$tunnelIP name=(\"eoipv6-tunnel\".\$tunnel) tunnel-id=\$tunnel\
     \n                    }\
     \n                }\
     \n            }\
@@ -241,7 +249,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
     \n    }\
     \n  }\
     \n\
-    \n}"
+    \n}")
 
 
 /system scheduler
@@ -250,21 +258,11 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 
 :put "configure capsman"
 /caps-man channel
-remove [find]
-add band=2ghz-onlyn extension-channel=disabled frequency=2412 name=24-001
-add band=2ghz-onlyn extension-channel=disabled frequency=2432 name=24-005
-add band=2ghz-onlyn extension-channel=disabled frequency=2452 name=24-009
-add band=2ghz-onlyn extension-channel=disabled frequency=2472 name=24-013
-add band=5ghz-onlyn extension-channel=Ce frequency=5180 name=5-036
-add band=5ghz-onlyn extension-channel=Ce frequency=5220 name=5-044
-add band=5ghz-onlyn extension-channel=Ce frequency=5260 name=5-052
-add band=5ghz-onlyn extension-channel=Ce frequency=5300 name=5-060
-add band=5ghz-onlyac extension-channel=Ceee frequency=5500 name=5-100
-add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
+	remove [find]
+	add band=2ghz-g/n extension-channel=disabled frequency=2412,2432,2452,2472 name=24-autoselect save-selected=yes
+	add band=5ghz-onlyn extension-channel=XX frequency=5180,5220,5260,5300 name=5n-autoselect save-selected=yes
+	add band=5ghz-onlyac extension-channel=XXXX frequency=5500,5580 name=5ac-autoselect save-selected=yes
 
-
-#/interface wireless cap
-#	set enabled=yes interfaces=[/interface wireless find] certificate=none
 :if ([:len [/interface wireless find]]>0) do={
 	/interface wireless cap
 		set enabled=yes interfaces=[/interface wireless find] certificate=none
@@ -275,11 +273,14 @@ add band=5ghz-onlyac extension-channel=Ceee frequency=5580 name=5-116
 			add name=("default-".$number) passphrase=QK1ga6XtawnxYPQzTULgejI1gm8FTg
 		}
 	/caps-man configuration
-		add name=("default-".$number) security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client country=switzerland
-
+		add name=base-24 channel=24-autoselect security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client country=switzerland datapath.client-to-client-forwarding=yes
+		add name=base-5n channel=5n-autoselect security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client country=switzerland datapath.client-to-client-forwarding=yes
+		add name=base-5ac channel=5ac-autoselect security=("default-".$number) ssid=("master-".$number) datapath.bridge=wlan-client country=switzerland datapath.client-to-client-forwarding=yes
 }
 :if ([:len [/caps-man provisioning find]]<1) do={
 	/caps-man provisioning
-		add action=create-enabled name-format=prefix-identity master-configuration=([/caps-man configuration find]->0) name-prefix=cap
+		add action=create-dynamic-enabled comment="5 GHz AC" hw-supported-modes=ac master-configuration=base-5ac name-format=prefix-identity name-prefix=cap
+		add action=create-dynamic-enabled comment="5 GHz N" hw-supported-modes=an master-configuration=base-5n name-format=prefix-identity name-prefix=cap
+		add action=create-dynamic-enabled comment="2.4 GHz" hw-supported-modes=gn master-configuration=base-24 name-format=prefix-identity name-prefix=cap
 }
 
