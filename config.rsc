@@ -261,7 +261,7 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 	remove [find]
 	add band=2ghz-g/n extension-channel=disabled frequency=2412,2432,2452,2472 name=24-autoselect save-selected=yes
 	add band=5ghz-onlyn extension-channel=XX frequency=5180,5220,5260,5300 name=5n-autoselect save-selected=yes
-	add band=5ghz-onlyac extension-channel=XXXX frequency=5500,5580 name=5ac-autoselect save-selected=yes
+	add band=5ghz-onlyac extension-channel=XXXX frequency=5180,5260,5500,5580 name=5ac-autoselect save-selected=yes
 
 :if ([:len [/interface wireless find]]>0) do={
 	/interface wireless cap
@@ -284,3 +284,6 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 		add action=create-dynamic-enabled comment="2.4 GHz" hw-supported-modes=gn master-configuration=base-24 name-format=prefix-identity name-prefix=cap
 }
 
+:do {
+      /interface ethernet poe set poe-out=auto-on [find]
+} on-error={ :put "no poe device"};
