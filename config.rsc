@@ -287,3 +287,20 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 :do {
       /interface ethernet poe set poe-out=auto-on [find]
 } on-error={ :put "no poe device"};
+
+/interface lte apn
+remove [find name=ch-swisscom]
+remove [find name=ch-sunrise]
+remove [find name=ch-salt]
+remove [find name=fr-free]
+remove [find name=fr-bouygues]
+remove [find name=fr-sfr]
+remove [find name=fr-orange]
+add apn=gprs.swisscom.ch name=ch-swisscom
+add apn=internet name=ch-sunrise
+add apn=internet name=ch-salt
+add apn=free name=fr-free
+add apn=mmsbouygtel.com name=fr-bouygues
+add apn=websfr name=fr-sfr
+add apn=orange.fr authentication=pap name=fr-orange password=orange user=orange
+
