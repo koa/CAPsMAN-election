@@ -82,7 +82,7 @@
 }
 :put "setup dns"
 /ip dns
-	set allow-remote-requests=yes servers=($v6prefix."::fffe")
+	set allow-remote-requests=yes servers=($v6prefix."::fffe,172.16.255.1")
 	static remove [find where address=($v6prefix."::".$number)]
 	static add address=($v6prefix."::".$number) name=("station-".$number.".lan")
 
@@ -287,6 +287,38 @@ add name=check-master owner=admin policy=ftp,reboot,read,write,policy,test,passw
 :do {
       /interface ethernet poe set poe-out=auto-on [find]
 } on-error={ :put "no poe device"};
+
+/system script add dont-require-permissions=no name=import-keys owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="{\
+    \n\t:local user \"koa\"\
+    \n\t/tool fetch url=\"https://github.com/\$user.keys\" dst-path=keys\
+    \n\t:local keys [/file get [/file find name=keys] contents] ;\
+    \n\t:local contentLen [:len \$keys];\
+    \n\
+    \n\t:local lineEnd 0;\
+    \n\t:local line \"\";\
+    \n\t:local lastEnd 0;\
+    \n\
+    \n\t:while (\$lineEnd < \$contentLen) do={\
+    \n\t\t:set lineEnd [:find \$keys \"\\n\" \$lastEnd];\
+    \n\t\t# if there are no more line breaks, set this to be the last one\
+    \n\t\t:if ([:len \$lineEnd] = 0) do={\
+    \n\t\t\t:set lineEnd \$contentLen;\
+    \n\t\t}\
+    \n\t\t# get the current line based on the last line break and next one\
+    \n\t\t:set line [:pick \$keys \$lastEnd \$lineEnd];\
+    \n\t\t:set lastEnd (\$lineEnd + 1);\
+    \n\t\t# don't process blank lines\
+    \n\t\t:if (\$line != \"\\r\" && [:len \$line] >0) do={\
+    \n\t\t\t/file print file=key.txt\
+    \n\t\t\t:delay 2\
+    \n\t\t\t/file set contents=\"\$line \$user\" key.txt\
+    \n\t\t\t:do {\
+    \n\t\t\t\t/user ssh-keys import user=admin public-key-file=key.txt\
+    \n\t\t\t} on-error={ :put \"cannot import key\"};\
+    \n\t\t}\
+    \n\t} \
+    \n}"
+
 
 /interface lte apn
 remove [find name=ch-swisscom]
